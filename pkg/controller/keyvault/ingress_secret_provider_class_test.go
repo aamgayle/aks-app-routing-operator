@@ -30,89 +30,6 @@ import (
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
-func TestSecretProviderClassReconcilerLabelChecking(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ingress"
-	ing.Namespace = "default"
-	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-	}
-
-	c := fake.NewClientBuilder().WithObjects(ing).Build()
-	require.NoError(t, secv1.AddToScheme(c.Scheme()))
-	i := &IngressSecretProviderClassReconciler{
-		client: c,
-		config: &config.Config{
-			TenantID:    "test-tenant-id",
-			MSIClientID: "test-msi-client-id",
-		},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
-	}
-
-	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logr.Discard())
-
-	// Create the secret provider class
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
-	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err := i.Reconcile(ctx, req)
-	require.NoError(t, err)
-
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
-
-	// Prove it exists
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + ing.Name
-	spc.Namespace = ing.Namespace
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
-
-	expected := &secv1.SecretProviderClass{
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: "azure",
-			Parameters: map[string]string{
-				"keyvaultName":           "testvault",
-				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-				"tenantId":               i.config.TenantID,
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": i.config.MSIClientID,
-			},
-			SecretObjects: []*secv1.SecretObject{{
-				SecretName: spc.Name,
-				Type:       "kubernetes.io/tls",
-				Data: []*secv1.SecretObjectData{
-					{ObjectName: "testcert", Key: "tls.key"},
-					{ObjectName: "testcert", Key: "tls.crt"},
-				},
-			}},
-		},
-	}
-	assert.Equal(t, expected.Spec, spc.Spec)
-
-	// Check for idempotence
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
-
-	// Remove the cert's version from the ingress
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
-	}
-	require.NoError(t, i.client.Update(ctx, ing))
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
-}
-
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ing := &netv1.Ingress{}
 	ing.Name = "test-ingress"
@@ -445,4 +362,89 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 		assert.True(t, ok)
 		require.NoError(t, err)
 	})
+}
+
+func TestSecretProviderClassReconcilerLabelChecking(t *testing.T) {
+	ing := &netv1.Ingress{}
+	ing.Name = "test-ingress"
+	ing.Namespace = "default"
+	ingressClass := "webapprouting.kubernetes.azure.com"
+	ing.Spec.IngressClassName = &ingressClass
+	ing.Annotations = map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+	}
+	ing.Labels = manifests.GetTopLevelLabels()
+
+	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	i := &IngressSecretProviderClassReconciler{
+		client: c,
+		config: &config.Config{
+			TenantID:    "test-tenant-id",
+			MSIClientID: "test-msi-client-id",
+		},
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+	}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	// Create the secret provider class
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err := i.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Prove it exists
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "keyvault-" + ing.Name
+	spc.Namespace = ing.Namespace
+	spc.Labels = ing.Labels
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+
+	expected := &secv1.SecretProviderClass{
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+			Parameters: map[string]string{
+				"keyvaultName":           "testvault",
+				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
+				"tenantId":               i.config.TenantID,
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": i.config.MSIClientID,
+			},
+			SecretObjects: []*secv1.SecretObject{{
+				SecretName: spc.Name,
+				Type:       "kubernetes.io/tls",
+				Data: []*secv1.SecretObjectData{
+					{ObjectName: "testcert", Key: "tls.key"},
+					{ObjectName: "testcert", Key: "tls.crt"},
+				},
+			}},
+		},
+	}
+	assert.Equal(t, expected.Spec, spc.Spec)
+
+	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Remove the cert's version from the ingress
+	ing.Annotations = map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
+	}
+	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 }
