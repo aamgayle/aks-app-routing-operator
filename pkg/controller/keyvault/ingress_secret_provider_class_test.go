@@ -337,7 +337,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 }
 
 func getFakeLabelsWithTopLevel(fakeLabels map[string]string) map[string]string {
-	var retLabels map[string]string
+	retLabels := make(map[string]string)
 
 	for key, label := range fakeLabels {
 		retLabels[key] = label
