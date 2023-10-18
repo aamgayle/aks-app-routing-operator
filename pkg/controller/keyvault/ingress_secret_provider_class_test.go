@@ -6,6 +6,7 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"net/url"
 	"testing"
 
@@ -38,6 +39,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ing.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 	}
+	ing.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -67,6 +69,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "keyvault-" + ing.Name
 	spc.Namespace = ing.Namespace
+	spc.Labels = ing.Labels
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	expected := &secv1.SecretProviderClass{
