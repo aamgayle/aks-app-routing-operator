@@ -41,6 +41,8 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	}
 	ing.Labels = manifests.GetTopLevelLabels()
 
+	fakeLabels := map[string]string{"fake1": "label1", "fake2": "label2", "fake3": "label3"}
+
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	i := &IngressSecretProviderClassReconciler{
@@ -133,6 +135,16 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 
 	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Check for top level labels
+	ing.Labels = getFakeLabelsWithTopLevel(fakeLabels)
+	require.NoError(t, i.client.Update(ctx, ing))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -313,4 +325,17 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
 	}
+}
+
+func getFakeLabelsWithTopLevel(fakeLabels map[string]string) map[string]string {
+	var retLabels map[string]string
+
+	for key, label := range fakeLabels {
+		retLabels[key] = label
+	}
+
+	for key, label := range manifests.GetTopLevelLabels() {
+		retLabels[key] = label
+	}
+	return retLabels
 }
