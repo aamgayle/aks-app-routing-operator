@@ -341,9 +341,13 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 	ingressClass := "webapprouting.kubernetes.azure.com"
 
 	i := &IngressSecretProviderClassReconciler{
+		config: &config.Config{
+			TenantID:    "test-tenant-id",
+			MSIClientID: "test-msi-client-id",
+		},
 		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
-
+	
 	ing := &netv1.Ingress{}
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert"}
