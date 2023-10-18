@@ -150,6 +150,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	ing.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
 	}
+	ing.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -195,6 +196,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	ing := &netv1.Ingress{}
 	ing.Spec.IngressClassName = &ingressClass
+	ing.Labels = manifests.GetTopLevelLabels()
 
 	t.Run("missing ingress class", func(t *testing.T) {
 		ing := ing.DeepCopy()
@@ -294,6 +296,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 					Annotations: map[string]string{
 						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
 					},
+					Labels: manifests.GetTopLevelLabels(),
 				},
 				Spec: netv1.IngressSpec{
 					IngressClassName: &ingressClass,
