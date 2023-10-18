@@ -41,8 +41,6 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	}
 	ing.Labels = manifests.GetTopLevelLabels()
 
-	fakeLabels := map[string]string{"fake1": "label1", "fake2": "label2", "fake3": "label3"}
-
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	i := &IngressSecretProviderClassReconciler{
@@ -142,8 +140,19 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Check for top level labels
+	fakeLabels := map[string]string{"fake1": "label1", "fake2": "label2", "fake3": "label3"}
+	// Check for top level labels with additional labels
 	ing.Labels = getFakeLabelsWithTopLevel(fakeLabels)
+	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Check for labels without top level labels
+	ing.Labels = fakeLabels
 	require.NoError(t, i.client.Update(ctx, ing))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
