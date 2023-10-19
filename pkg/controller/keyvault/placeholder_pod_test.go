@@ -149,6 +149,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	// Change the ingress resource's class
 	ing.Spec.IngressClassName = nil
+	require.NoError(t, c.Update(ctx, ing))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
