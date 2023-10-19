@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"net/url"
 	"testing"
 
@@ -142,7 +143,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	fakeLabels := map[string]string{"fake1": "label1", "fake2": "label2", "fake3": "label3"}
 	// Check for top level labels with additional labels
-	ing.Labels = getFakeLabelsWithTopLevel(fakeLabels)
+	ing.Labels = util.MergeMaps(manifests.GetTopLevelLabels(), fakeLabels)
 	require.NoError(t, i.client.Update(ctx, ing))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
@@ -347,7 +348,6 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 		},
 		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
-	
 	ing := &netv1.Ingress{}
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert"}
@@ -382,24 +382,11 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 	t.Run("top level labels with extra labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
 		extraLabels := map[string]string{"fake": "label", "fake2": "label2", "fake3": "label3"}
-		ing.Labels = getFakeLabelsWithTopLevel(extraLabels)
+		ing.Labels = util.MergeMaps(manifests.GetTopLevelLabels(), extraLabels)
 		ing.Name = "test-ingress"
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.True(t, ok)
 		require.NoError(t, err)
 	})
-}
-
-func getFakeLabelsWithTopLevel(fakeLabels map[string]string) map[string]string {
-	retLabels := make(map[string]string)
-
-	for key, label := range fakeLabels {
-		retLabels[key] = label
-	}
-
-	for key, label := range manifests.GetTopLevelLabels() {
-		retLabels[key] = label
-	}
-	return retLabels
 }

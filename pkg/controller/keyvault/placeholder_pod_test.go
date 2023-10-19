@@ -36,6 +36,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing.Namespace = "default"
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
+	ing.Labels = manifests.GetTopLevelLabels()
 
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "test-spc"
@@ -45,6 +46,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		Kind: "Ingress",
 		Name: ing.Name,
 	}}
+	spc.Labels = ing.Labels
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))

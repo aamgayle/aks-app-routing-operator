@@ -87,7 +87,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
-			Labels:    manifests.GetTopLevelLabels(),
+			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -136,7 +136,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
-	labels := map[string]string{"app": spc.Name}
+	labels := util.MergeMaps(map[string]string{"app": spc.Name}, spc.Labels)
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
