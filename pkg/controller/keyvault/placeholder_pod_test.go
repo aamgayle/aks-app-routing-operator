@@ -75,13 +75,15 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	replicas := int32(1)
 	historyLimit := int32(2)
+
+	expectedLabels := util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app": spc.Name})
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
-		Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": spc.Name}},
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app": spc.Name},
+				Labels: expectedLabels,
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
