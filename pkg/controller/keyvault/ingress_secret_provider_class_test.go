@@ -344,32 +344,39 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
 	ing := &netv1.Ingress{}
+	ing.Name = "test-ingress"
+	ing.Namespace = "default"
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert"}
 
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "keyvault-" + ing.Name
+	spc.Namespace = ing.Namespace
+	spc.Labels = manifests.GetTopLevelLabels()
+
 	t.Run("no labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Labels = map[string]string{}
+		spc.Labels = map[string]string{}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := i.buildSPC(ing, spc)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
 	t.Run("no top level labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Labels = map[string]string{"fake": "fake"}
+		spc.Labels = map[string]string{"fake": "fake"}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := i.buildSPC(ing, spc)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
 	t.Run("bad value for proper key on label", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Labels = map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}
+		spc.Labels = map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := i.buildSPC(ing, spc)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
@@ -377,8 +384,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 	t.Run("top level labels with extra labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
 		extraLabels := map[string]string{"fake": "label", "fake2": "label2", "fake3": "label3"}
-		ing.Labels = util.MergeMaps(manifests.GetTopLevelLabels(), extraLabels)
-		ing.Name = "test-ingress"
+		spc.Labels = util.MergeMaps(manifests.GetTopLevelLabels(), extraLabels)
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.True(t, ok)
