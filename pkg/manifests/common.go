@@ -32,6 +32,25 @@ func HasTopLevelLabels(spcLabels map[string]string) bool {
 	return true
 }
 
+func HasRequiredLabels(labelSet ...map[string]string) bool {
+	if len(labelSet) == 0 {
+		return false
+	}
+
+	for _, set := range labelSet {
+		for label, value := range set {
+			spcValue, ok := set[label]
+			if !ok {
+				return false
+			}
+			if spcValue != value {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 	if deploy == nil {
 		return nil
