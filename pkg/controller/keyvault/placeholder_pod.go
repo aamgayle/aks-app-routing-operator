@@ -79,8 +79,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("name", spc.Name, "namespace", spc.Namespace, "generation", spc.Generation)
 
-	depLabels := map[string]string{"app": spc.Name}
-
 	dep := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
@@ -89,7 +87,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
-			Labels:    util.MergeMaps(spc.Labels, depLabels),
+			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -122,7 +120,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, depLabels) {
+		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels()) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
 			return result, client.IgnoreNotFound(err)
