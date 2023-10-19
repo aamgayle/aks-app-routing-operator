@@ -52,11 +52,11 @@ func TestHasRequiredLabels(t *testing.T) {
 		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
 		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: true},
 		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: false},
-		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "app": "app-name", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: false},
+		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "app": "app-name", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: true},
 	}
 
 	for _, c := range cases {
-		require.Equal(t, HasRequiredLabels(c.Labels, GetTopLevelLabels()), c.Outcome)
+		require.Equal(t, HasRequiredLabels(c.Labels, c.ReqLabels...), c.Outcome)
 	}
 }
 
