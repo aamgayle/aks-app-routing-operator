@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -18,7 +19,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -147,6 +147,22 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
 	assert.Equal(t, expected, dep.Spec)
 
+	// Change the ingress resource's class
+	ing.Spec.IngressClassName = nil
+	require.NoError(t, c.Update(ctx, ing))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove idempotence
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
 	//// Remove managed-by labels
 	//spc.Labels = map[string]string{}
 	//expected.Template.Labels = map[string]string{"app": spc.Name}
@@ -159,21 +175,6 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	//require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	//require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	// Change the ingress resource's class
-	ing.Spec.IngressClassName = nil
-	require.NoError(t, c.Update(ctx, ing))
-
-	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
-	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err = p.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
-
-	// Prove the deployment was not deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
-	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 	//
 	//// Return managed-by labels
 	//spc.Labels = ing.Labels
