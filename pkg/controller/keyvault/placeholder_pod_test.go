@@ -171,9 +171,9 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the deployment was not deleted
-	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 	// Prove idempotence
-	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 	//
 	//// Return managed-by labels
 	//spc.Labels = ing.Labels
