@@ -76,7 +76,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app": spc.Name})
+	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
