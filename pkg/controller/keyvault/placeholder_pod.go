@@ -79,6 +79,8 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("name", spc.Name, "namespace", spc.Namespace, "generation", spc.Generation)
 
+	depLabels := map[string]string{"app": spc.Name}
+
 	dep := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
@@ -87,7 +89,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
-			Labels:    spc.Labels,
+			Labels:    util.MergeMaps(spc.Labels, depLabels),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -111,7 +113,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
-	depLabels := map[string]string{"app": spc.Name}
 
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
