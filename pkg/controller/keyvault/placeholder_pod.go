@@ -121,7 +121,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels(), depLabels) {
+		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels()) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
 			return result, client.IgnoreNotFound(err)
