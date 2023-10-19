@@ -92,7 +92,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
 			Namespace: ing.Namespace,
-			Labels:    ing.Labels,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -133,10 +133,6 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
 	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
-		return false, nil
-	}
-
-	if len(ing.Labels) == 0 || !(manifests.HasRequiredLabels(ing.Labels, manifests.GetTopLevelLabels())) {
 		return false, nil
 	}
 
