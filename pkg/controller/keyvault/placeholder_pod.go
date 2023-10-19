@@ -111,7 +111,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
-	//depLabels := map[string]string{"app": spc.Name}
+	depLabels := map[string]string{"app": spc.Name}
 
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
@@ -121,7 +121,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels()) {
+		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, depLabels) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
 			return result, client.IgnoreNotFound(err)
