@@ -154,7 +154,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	// Change the ingress resource's class
 	ing.Spec.IngressClassName = nil
-	
+
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
@@ -168,24 +168,23 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	// Prove idempotence
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
-	//
-	//// Return managed-by labels
-	//spc.Labels = ing.Labels
-	//expected.Template.Labels = expectedLabels
-	//require.NoError(t, c.Update(ctx, spc))
-	//
-	//beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
-	//beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	//_, err = p.Reconcile(ctx, req)
-	//require.NoError(t, err)
-	//require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
-	//require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
-	//
-	//// Prove the deployment was deleted
-	//require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
-	//
-	//// Prove idempotence
-	//require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	// Return managed-by labels
+	spc.Labels = ing.Labels
+	expected.Template.Labels = expectedLabels
+	require.NoError(t, c.Update(ctx, spc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Prove the deployment was deleted
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove idempotence
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
 func TestNewPlaceholderPodController(t *testing.T) {
