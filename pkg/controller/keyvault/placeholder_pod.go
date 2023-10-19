@@ -111,7 +111,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
-	depLabels := map[string]string{"app": spc.Name}
+	//depLabels := map[string]string{"app": spc.Name}
 
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
