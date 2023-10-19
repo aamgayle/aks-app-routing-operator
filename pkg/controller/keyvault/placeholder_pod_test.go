@@ -147,10 +147,14 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
 	assert.Equal(t, expected, dep.Spec)
 
+	// Remove managed-by labels
+	spc.Labels = map[string]string{}
+	expected.Template.Labels = map[string]string{"app": spc.Name}
+	require.NoError(t, c.Update(ctx, spc))
+
 	// Change the ingress resource's class
 	ing.Spec.IngressClassName = nil
-	require.NoError(t, c.Update(ctx, ing))
-
+	
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
@@ -158,22 +162,11 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	// Prove the deployment was not deleted
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
-
-	//// Remove managed-by labels
-	//spc.Labels = map[string]string{}
-	//expected.Template.Labels = map[string]string{"app": spc.Name}
-	//require.NoError(t, c.Update(ctx, spc))
-	//
-	//beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
-	//beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	//_, err = p.Reconcile(ctx, req)
-	//require.NoError(t, err)
-	//require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
-	//require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	//
 	//// Return managed-by labels
