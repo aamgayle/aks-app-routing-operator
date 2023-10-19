@@ -356,7 +356,7 @@ func TestBuildSPCLabelChecking(t *testing.T) {
 
 	t.Run("no labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		spc.DeepCopy()
+		spc := spc.DeepCopy()
 		spc.Labels = map[string]string{}
 
 		ok, err := i.buildSPC(ing, spc)
