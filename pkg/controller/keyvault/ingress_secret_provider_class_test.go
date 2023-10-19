@@ -333,7 +333,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 	}
 }
 
-func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T) {
+func TestBuildSPCLabelChecking(t *testing.T) {
 	ingressClass := "webapprouting.kubernetes.azure.com"
 
 	i := &IngressSecretProviderClassReconciler{
@@ -356,6 +356,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T)
 
 	t.Run("no labels", func(t *testing.T) {
 		ing := ing.DeepCopy()
+		spc.DeepCopy()
 		spc.Labels = map[string]string{}
 
 		ok, err := i.buildSPC(ing, spc)
