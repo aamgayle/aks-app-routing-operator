@@ -171,6 +171,8 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	// Return managed-by labels
 	spc.Labels = ing.Labels
 	expected.Template.Labels = expectedLabels
+	// Change the ingress resource's class
+	ing.Spec.IngressClassName = nil
 	require.NoError(t, c.Update(ctx, spc))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
