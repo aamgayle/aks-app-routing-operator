@@ -92,7 +92,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
 			Namespace: ing.Namespace,
-			Labels:    manifests.GetTopLevelLabels(),
+			Labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"fake": "test"}),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
