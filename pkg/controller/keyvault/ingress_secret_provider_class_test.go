@@ -180,6 +180,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	spc.Namespace = ing.Namespace
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Patch(ctx, spc, client.Merge))
+	assert.Equal(t, 0, len(spc.Labels))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
@@ -210,8 +211,9 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			}},
 		},
 	}
+	assert.Equal(t, 0, len(spc.Labels))
 	assert.Equal(t, expected.Spec, spc.Spec)
-	assert.Equal(t, len(spc.Labels), 0)
+
 	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
