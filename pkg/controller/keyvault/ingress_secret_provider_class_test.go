@@ -202,7 +202,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 		},
 	}
 	assert.Equal(t, expected.Spec, spc.Spec)
-
+	assert.Equal(t, len(spc.Labels), 0)
 	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
