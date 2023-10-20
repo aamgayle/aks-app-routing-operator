@@ -181,7 +181,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Patch(ctx, spc, client.Merge))
 
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeErrCount = testutils.Getgit ErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
@@ -190,8 +190,27 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
-	// Test should never hit the lines in buildSPC to create the Spec so it should be nil
-	assert.Equal(t, spc.Spec, nil)
+	expected := &secv1.SecretProviderClass{
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+			Parameters: map[string]string{
+				"keyvaultName":           "testvault",
+				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
+				"tenantId":               i.config.TenantID,
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": i.config.MSIClientID,
+			},
+			SecretObjects: []*secv1.SecretObject{{
+				SecretName: spc.Name,
+				Type:       "kubernetes.io/tls",
+				Data: []*secv1.SecretObjectData{
+					{ObjectName: "testcert", Key: "tls.key"},
+					{ObjectName: "testcert", Key: "tls.crt"},
+				},
+			}},
+		},
+	}
+	assert.Equal(t, expected.Spec, spc.Spec)
 	assert.Equal(t, len(spc.Labels), 0)
 	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
