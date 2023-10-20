@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"net/url"
 	"testing"
 
@@ -175,11 +176,26 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove it exists
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + ing.Name
-	spc.Namespace = ing.Namespace
-	spc.Labels = map[string]string{}
-	require.NoError(t, i.client.Patch(ctx, spc, client.Merge))
+	spc := &secv1.SecretProviderClass{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "secrets-store.csi.x-k8s.io/v1",
+			Kind:       "SecretProviderClass",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
+			Namespace: ing.Namespace,
+			Labels:    map[string]string{},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: ing.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       ing.Kind,
+				Name:       ing.Name,
+				UID:        ing.UID,
+			}},
+		},
+	}
+	
+	require.NoError(t, util.Upsert(ctx, i.client, spc))
 	assert.Equal(t, 0, len(spc.Labels))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
