@@ -178,8 +178,8 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "keyvault-" + ing.Name
 	spc.Namespace = ing.Namespace
-	spc.Labels = map[string]string{}
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+	spc.Labels = map[string]string{}
 
 	expected := &secv1.SecretProviderClass{
 		Spec: secv1.SecretProviderClassSpec{
