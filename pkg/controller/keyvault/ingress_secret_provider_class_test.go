@@ -164,12 +164,6 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + ing.Name
-	spc.Namespace = ing.Namespace
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
-	spc.Labels = map[string]string{}
-
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
@@ -179,6 +173,22 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Prove it exists
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "keyvault-" + ing.Name
+	spc.Namespace = ing.Namespace
+	spc.Labels = map[string]string{}
+	require.NoError(t, i.client.Update(ctx, spc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	// Test should never hit the lines in buildSPC to create the Spec so it should be nil
 	assert.Equal(t, spc.Spec, nil)
