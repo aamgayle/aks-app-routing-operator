@@ -181,7 +181,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Patch(ctx, spc, client.Merge))
 
-	beforeErrCount = testutils.Getgit ErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
