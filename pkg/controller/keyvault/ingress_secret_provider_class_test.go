@@ -164,6 +164,12 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "keyvault-" + ing.Name
+	spc.Namespace = ing.Namespace
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+	spc.Labels = map[string]string{}
+
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
@@ -174,34 +180,8 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Prove it exists
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + ing.Name
-	spc.Namespace = ing.Namespace
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
-	spc.Labels = map[string]string{}
-
-	expected := &secv1.SecretProviderClass{
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: "azure",
-			Parameters: map[string]string{
-				"keyvaultName":           "testvault",
-				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-				"tenantId":               i.config.TenantID,
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": i.config.MSIClientID,
-			},
-			SecretObjects: []*secv1.SecretObject{{
-				SecretName: spc.Name,
-				Type:       "kubernetes.io/tls",
-				Data: []*secv1.SecretObjectData{
-					{ObjectName: "testcert", Key: "tls.key"},
-					{ObjectName: "testcert", Key: "tls.crt"},
-				},
-			}},
-		},
-	}
-	assert.Equal(t, expected.Spec, spc.Spec)
+	// Test should never hit the lines in buildSPC to create the Spec so it should be nil
+	assert.Equal(t, spc.Spec, nil)
 	assert.Equal(t, len(spc.Labels), 0)
 	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
