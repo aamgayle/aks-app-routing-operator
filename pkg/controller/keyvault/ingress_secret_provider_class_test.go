@@ -179,7 +179,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	spc.Name = "keyvault-" + ing.Name
 	spc.Namespace = ing.Namespace
 	spc.Labels = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, spc))
+	require.NoError(t, i.client.Patch(ctx, spc, client.Merge))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
