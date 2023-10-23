@@ -196,7 +196,11 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 		},
 	}
 
-	// Remove the labels from secret provider class
+	// Get secret provider class
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
+	assert.Equal(t, len(manifests.GetTopLevelLabels()), len(spc.Labels))
+
+	// Remove the labels
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, spc))
 	assert.Equal(t, 0, len(spc.Labels))
@@ -217,7 +221,8 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 	assert.Equal(t, 0, len(spc.Labels))
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
-	
+
+	// Check secret provider class Spec after Reconcile
 	expected := &secv1.SecretProviderClass{
 		Spec: secv1.SecretProviderClassSpec{
 			Provider: "azure",
