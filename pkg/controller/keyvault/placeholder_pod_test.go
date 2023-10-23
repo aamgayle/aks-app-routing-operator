@@ -171,7 +171,6 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	ing.Namespace = "default"
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
-	ing.Labels = map[string]string{}
 
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "test-spc"
@@ -181,7 +180,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 		Kind: "Ingress",
 		Name: ing.Name,
 	}}
-	spc.Labels = ing.Labels
+	spc.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -268,7 +267,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 
 	// Change the ingress resource's class
 	ing.Spec.IngressClassName = nil
-	require.NoError(t, c.Update(ctx, spc))
+	require.NoError(t, c.Update(ctx, ing))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)

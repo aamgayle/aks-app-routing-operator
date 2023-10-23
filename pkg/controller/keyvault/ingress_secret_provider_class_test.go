@@ -216,12 +216,12 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			}},
 		},
 	}
-	assert.Equal(t, 0, len(spc.Labels))
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Remove the labels from secret provider class
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, spc))
+	assert.Equal(t, 0, len(spc.Labels))
 
 	// Remove the cert annotation from the ingress
 	ing.Annotations = map[string]string{}
