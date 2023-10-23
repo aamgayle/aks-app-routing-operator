@@ -195,6 +195,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 		},
 	}
 
+	assert.Equal(t, 0, len(spc.Labels))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
