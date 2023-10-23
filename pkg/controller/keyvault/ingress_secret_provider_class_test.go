@@ -207,7 +207,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	spc.Labels = map[string]string{}
-	require.NoError(t, util.Upsert(ctx, i.client, spc))
+	require.NoError(t, i.client.Update(ctx, spc))
 	assert.Equal(t, 0, len(spc.Labels))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
