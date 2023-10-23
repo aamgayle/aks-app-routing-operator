@@ -194,9 +194,6 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			}},
 		},
 	}
-	
-	require.NoError(t, util.Upsert(ctx, i.client, spc))
-	assert.Equal(t, 0, len(spc.Labels))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
@@ -206,6 +203,16 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+
+	require.NoError(t, util.Upsert(ctx, i.client, spc))
+	assert.Equal(t, 0, len(spc.Labels))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	expected := &secv1.SecretProviderClass{
 		Spec: secv1.SecretProviderClassSpec{
