@@ -197,11 +197,12 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 
 	// Prove secret class was not removed after first reconcile
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
-
+	assert.Equal(t, len(manifests.GetTopLevelLabels()), len(spc.Labels))
+	
 	// Update it to blank labels
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, spc))
-	assert.Equal(t, len(manifests.GetTopLevelLabels()), len(spc.Labels))
+	assert.Equal(t, 0, len(spc.Labels))
 
 	// Remove the cert annotation from the ingress
 	ing.Annotations = map[string]string{}
