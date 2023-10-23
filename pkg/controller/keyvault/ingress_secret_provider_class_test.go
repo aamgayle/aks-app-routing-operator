@@ -198,6 +198,11 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	// Prove secret class was not removed after first reconcile
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 
+	// Update it to blank labels
+	spc.Labels = map[string]string{}
+	require.NoError(t, i.client.Update(ctx, spc))
+	assert.Equal(t, 0, len(spc.Labels))
+
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -205,13 +210,12 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
+	// Prove secret class was not removed after second reconcile
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 	assert.Equal(t, 0, len(spc.Labels))
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
-	spc.Labels = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, spc))
-	assert.Equal(t, 0, len(spc.Labels))
-
+	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -242,14 +246,6 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	assert.Equal(t, 0, len(spc.Labels))
 	assert.Equal(t, expected.Spec, spc.Spec)
 
-	// Check for idempotence
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
-
 	// Remove the cert annotation from the ingress
 	ing.Annotations = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, ing))
@@ -260,7 +256,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Prove secret class was not removed
+	// Prove secret class was not removed after removing ingress anotations
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 
 	// Check for idempotence
