@@ -196,28 +196,6 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 		},
 	}
 
-	expected := &secv1.SecretProviderClass{
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: "azure",
-			Parameters: map[string]string{
-				"keyvaultName":           "testvault",
-				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-				"tenantId":               i.config.TenantID,
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": i.config.MSIClientID,
-			},
-			SecretObjects: []*secv1.SecretObject{{
-				SecretName: spc.Name,
-				Type:       "kubernetes.io/tls",
-				Data: []*secv1.SecretObjectData{
-					{ObjectName: "testcert", Key: "tls.key"},
-					{ObjectName: "testcert", Key: "tls.crt"},
-				},
-			}},
-		},
-	}
-	assert.Equal(t, expected.Spec, spc.Spec)
-
 	// Remove the labels from secret provider class
 	spc.Labels = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, spc))
@@ -239,6 +217,28 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 	assert.Equal(t, 0, len(spc.Labels))
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+	
+	expected := &secv1.SecretProviderClass{
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+			Parameters: map[string]string{
+				"keyvaultName":           "testvault",
+				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
+				"tenantId":               i.config.TenantID,
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": i.config.MSIClientID,
+			},
+			SecretObjects: []*secv1.SecretObject{{
+				SecretName: spc.Name,
+				Type:       "kubernetes.io/tls",
+				Data: []*secv1.SecretObjectData{
+					{ObjectName: "testcert", Key: "tls.key"},
+					{ObjectName: "testcert", Key: "tls.crt"},
+				},
+			}},
+		},
+	}
+	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
