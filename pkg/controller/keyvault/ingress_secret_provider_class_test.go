@@ -203,8 +203,10 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
+	assert.Equal(t, 0, len(spc.Labels))
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
+	spc.Labels = map[string]string{}
 	require.NoError(t, util.Upsert(ctx, i.client, spc))
 	assert.Equal(t, 0, len(spc.Labels))
 
