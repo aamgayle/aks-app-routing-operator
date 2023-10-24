@@ -31,8 +31,8 @@ import (
 )
 
 var (
-	ingressClass = "webapprouting.kubernetes.azure.com"
-	ing          = &netv1.Ingress{
+	spcTestIngressClassName = "webapprouting.kubernetes.azure.com"
+	spcTestIngress          = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-ingress",
 			Namespace: "default",
@@ -41,14 +41,14 @@ var (
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: &ingressClass,
+			IngressClassName: &spcTestIngressClassName,
 		},
 	}
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	// Create the ingress
-	ing := ing.DeepCopy()
+	ing := spcTestIngress.DeepCopy()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -58,7 +58,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -152,7 +152,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testing.T) {
 	// Create the ingress
-	ing := ing.DeepCopy()
+	ing := spcTestIngress.DeepCopy()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -162,7 +162,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -258,7 +258,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 
 func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	// Create the ingress
-	ing := ing.DeepCopy()
+	ing := spcTestIngress.DeepCopy()
 	ing.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
 	}
@@ -273,7 +273,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 			MSIClientID: "test-msi-client-id",
 		},
 		events:         recorder,
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -299,14 +299,13 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	ingressClass := "webapprouting.kubernetes.azure.com"
 	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
 	}
 
 	invalidURLIng := &netv1.Ingress{
 		Spec: netv1.IngressSpec{
-			IngressClassName: &ingressClass,
+			IngressClassName: &spcTestIngressClassName,
 		},
 	}
 
@@ -399,10 +398,10 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 				config: &config.Config{
 					Cloud: c.configCloud,
 				},
-				ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+				ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
 			}
 
-			ing := ing.DeepCopy()
+			ing := spcTestIngress.DeepCopy()
 			ing.Annotations = map[string]string{
 				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
 			}

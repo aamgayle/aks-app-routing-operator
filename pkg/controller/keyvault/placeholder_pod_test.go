@@ -30,21 +30,34 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-func TestPlaceholderPodControllerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ing"
-	ing.Namespace = "default"
-	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
+var (
+	placeholderTestIngClassName = "webapprouting.kubernetes.azure.com"
+	placeholderTestIng          = &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ing",
+			Namespace: "default",
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &placeholderTestIngClassName,
+		},
+	}
 
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "test-spc"
-	spc.Namespace = ing.Namespace
-	spc.Generation = 123
-	spc.OwnerReferences = []metav1.OwnerReference{{
-		Kind: "Ingress",
-		Name: ing.Name,
-	}}
+	placeholderSpc = &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-spc",
+			Namespace:  placeholderTestIng.Namespace,
+			Generation: 123,
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind: "Ingress",
+				Name: placeholderTestIng.Name,
+			}},
+		},
+	}
+)
+
+func TestPlaceholderPodControllerIntegration(t *testing.T) {
+	ing := placeholderTestIng.DeepCopy()
+	spc := placeholderSpc.DeepCopy()
 	spc.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
@@ -52,7 +65,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	p := &PlaceholderPodController{
 		client:         c,
 		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -165,20 +178,8 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 }
 
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ing"
-	ing.Namespace = "default"
-	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "test-spc"
-	spc.Namespace = ing.Namespace
-	spc.Generation = 123
-	spc.OwnerReferences = []metav1.OwnerReference{{
-		Kind: "Ingress",
-		Name: ing.Name,
-	}}
+	ing := placeholderTestIng.DeepCopy()
+	spc := placeholderSpc.DeepCopy()
 	spc.Labels = map[string]string{}
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
@@ -186,7 +187,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	p := &PlaceholderPodController{
 		client:         c,
 		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
 	}
 
 	ctx := context.Background()
