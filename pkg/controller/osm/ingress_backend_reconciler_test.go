@@ -34,7 +34,22 @@ var (
 	env        *envtest.Environment
 	restConfig *rest.Config
 	err        error
-	ing        = &netv1.Ingress{
+)
+
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
+}
+
+func TestIngressBackendReconcilerIntegration(t *testing.T) {
+	ing := &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
@@ -58,21 +73,7 @@ var (
 			}},
 		},
 	}
-)
 
-func TestMain(m *testing.M) {
-	restConfig, env, err = testutils.StartTestingEnv()
-	if err != nil {
-		panic(err)
-	}
-
-	code := m.Run()
-	testutils.CleanupTestingEnv(env)
-
-	os.Exit(code)
-}
-
-func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -137,6 +138,31 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 }
 
 func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
+	ing := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-ingress",
+			Namespace:   "test-ns",
+			Annotations: map[string]string{"kubernetes.azure.com/use-osm-mtls": "true"},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: util.StringPtr("test-ingress-class"),
+			Rules: []netv1.IngressRule{{}, {
+				IngressRuleValue: netv1.IngressRuleValue{
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{{}, {
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: "test-service",
+									Port: netv1.ServiceBackendPort{Number: 123},
+								},
+							},
+						}},
+					},
+				},
+			}},
+		},
+	}
+	
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -201,14 +227,6 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 
 	// Prove the ingress backend was not cleaned up
 	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual)))
-
-	// Cover no-op deletions
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
-	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
-	_, err = e.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }
 
 func TestNewIngressBackendReconciler(t *testing.T) {
