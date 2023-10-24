@@ -116,13 +116,15 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		logger.Info("cleaning unused placeholder pod deployment")
 
 		logger.Info("getting placeholder deployment")
-		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
+
+		toCleanDeployment := &appsv1.Deployment{}
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasTopLevelLabels(dep.Labels) {
+		if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
 			logger.Info("deleting placeholder deployment")
-			err = p.client.Delete(ctx, dep)
+			err = p.client.Delete(ctx, toCleanDeployment)
 			return result, client.IgnoreNotFound(err)
 		}
 	}
