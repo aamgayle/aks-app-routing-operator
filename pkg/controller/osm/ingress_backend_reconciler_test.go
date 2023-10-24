@@ -136,6 +136,81 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }
 
+func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
+	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	e := &IngressBackendReconciler{
+		client:                 c,
+		config:                 &config.Config{NS: "test-config-ns"},
+		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
+	}
+
+	// Initial reconcile
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err := e.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Prove config is correct
+	actual := &policyv1alpha1.IngressBackend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ing.Name,
+			Namespace: ing.Namespace,
+		},
+	}
+
+	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual))
+	require.Len(t, actual.Spec.Backends, 1)
+	assert.Equal(t, policyv1alpha1.BackendSpec{
+		Name: "test-service",
+		Port: policyv1alpha1.PortSpec{Number: 123, Protocol: "https"},
+	}, actual.Spec.Backends[0])
+
+	// Cover no-op updates
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Remove the labels
+	actual.Labels = map[string]string{}
+	require.NoError(t, e.client.Update(ctx, actual))
+	assert.Equal(t, 0, len(actual.Labels))
+
+	// Remove the annotation
+	ing.Annotations = map[string]string{}
+	require.NoError(t, c.Update(ctx, ing))
+
+	// Reconcile
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	// Prove the ingress backend was not cleaned up
+	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual)))
+
+	// Cover no-op deletions
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+}
+
 func TestNewIngressBackendReconciler(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)

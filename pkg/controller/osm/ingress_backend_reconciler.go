@@ -104,8 +104,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
 
-	// TODO: add label and check for label before cleanup
-
 	backend := &policyv1alpha1.IngressBackend{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressBackend",
@@ -137,7 +135,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 		}
 
-		if len(backend.Labels) != 0 && manifests.HasTopLevelLabels(backend.Labels) {
+		if manifests.HasTopLevelLabels(backend.Labels) {
 			logger.Info("deleting IngressBackend")
 			err = i.client.Delete(ctx, backend)
 			return result, client.IgnoreNotFound(err)
