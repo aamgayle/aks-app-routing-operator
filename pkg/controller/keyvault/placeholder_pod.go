@@ -120,7 +120,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		toCleanDeployment := &appsv1.Deployment{}
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
 			return result, client.IgnoreNotFound(err)
-
 		}
 		if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
 			logger.Info("deleting placeholder deployment")

@@ -126,11 +126,12 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
+	toCleanBackend := &policyv1alpha1.IngressBackend{}
+
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
 
 		logger.Info("getting IngressBackend")
-		toCleanBackend := &policyv1alpha1.IngressBackend{}
 
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
 		if err != nil {
@@ -144,7 +145,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	backend.Spec = policyv1alpha1.IngressBackendSpec{
+	toCleanBackend.Spec = policyv1alpha1.IngressBackendSpec{
 		Backends: []policyv1alpha1.BackendSpec{},
 		Sources: []policyv1alpha1.IngressSourceSpec{
 			{
@@ -166,7 +167,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if path.Backend.Service == nil || path.Backend.Service.Port.Number == 0 {
 				continue
 			}
-			backend.Spec.Backends = append(backend.Spec.Backends, policyv1alpha1.BackendSpec{
+			toCleanBackend.Spec.Backends = append(toCleanBackend.Spec.Backends, policyv1alpha1.BackendSpec{
 				Name: path.Backend.Service.Name,
 				TLS:  policyv1alpha1.TLSSpec{SkipClientCertValidation: false},
 				Port: policyv1alpha1.PortSpec{
