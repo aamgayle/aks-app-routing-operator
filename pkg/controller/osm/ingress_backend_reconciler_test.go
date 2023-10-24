@@ -167,7 +167,6 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 			Namespace: ing.Namespace,
 		},
 	}
-
 	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual))
 	require.Len(t, actual.Spec.Backends, 1)
 	assert.Equal(t, policyv1alpha1.BackendSpec{
