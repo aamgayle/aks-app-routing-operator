@@ -120,7 +120,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels()) {
+		if len(dep.Labels) != 0 && manifests.HasTopLevelLabels(dep.Labels) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
 			return result, client.IgnoreNotFound(err)
@@ -137,7 +137,8 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
-	labels := util.MergeMaps(map[string]string{"app": spc.Name}, spc.Labels)
+	labels := util.MergeMaps(map[string]string{"app": spc.Name}, manifests.GetTopLevelLabels())
+
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),

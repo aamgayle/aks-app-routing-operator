@@ -137,7 +137,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 		}
 
-		if len(backend.Labels) != 0 && manifests.HasRequiredLabels(backend.Labels, manifests.GetTopLevelLabels()) {
+		if len(backend.Labels) != 0 && manifests.HasTopLevelLabels(backend.Labels) {
 			logger.Info("deleting IngressBackend")
 			err = i.client.Delete(ctx, backend)
 			return result, client.IgnoreNotFound(err)

@@ -36,7 +36,6 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing.Namespace = "default"
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
-	ing.Labels = manifests.GetTopLevelLabels()
 
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "test-spc"
@@ -46,7 +45,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		Kind: "Ingress",
 		Name: ing.Name,
 	}}
-	spc.Labels = ing.Labels
+	spc.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -180,7 +179,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 		Kind: "Ingress",
 		Name: ing.Name,
 	}}
-	spc.Labels = manifests.GetTopLevelLabels()
+	spc.Labels = map[string]string{}
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -210,7 +209,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
+	expectedLabels := util.MergeMaps(map[string]string{"app": spc.Name}, manifests.GetTopLevelLabels())
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,

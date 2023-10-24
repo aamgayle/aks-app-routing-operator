@@ -6,12 +6,8 @@ package keyvault
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"net/url"
 	"testing"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -28,17 +24,26 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ingress"
-	ing.Namespace = "default"
+	// Create the ingress
 	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+	ing := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+			},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &ingressClass,
+		},
 	}
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
@@ -143,13 +148,18 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testing.T) {
 	// Create the ingress
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ingress"
-	ing.Namespace = "default"
 	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+	ing := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+			},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &ingressClass,
+		},
 	}
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
@@ -255,15 +265,20 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 }
 
 func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ingress"
-	ing.Namespace = "default"
+	// Create the ingress
 	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
+	ing := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
+			},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &ingressClass,
+		},
 	}
-	ing.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -302,14 +317,15 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	ingressClass := "webapprouting.kubernetes.azure.com"
-
 	i := &IngressSecretProviderClassReconciler{
 		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
 
-	ing := &netv1.Ingress{}
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Labels = manifests.GetTopLevelLabels()
+	ing := &netv1.Ingress{
+		Spec: netv1.IngressSpec{
+			IngressClassName: &ingressClass,
+		},
+	}
 
 	t.Run("missing ingress class", func(t *testing.T) {
 		ing := ing.DeepCopy()
