@@ -34,22 +34,7 @@ var (
 	env        *envtest.Environment
 	restConfig *rest.Config
 	err        error
-)
-
-func TestMain(m *testing.M) {
-	restConfig, env, err = testutils.StartTestingEnv()
-	if err != nil {
-		panic(err)
-	}
-
-	code := m.Run()
-	testutils.CleanupTestingEnv(env)
-
-	os.Exit(code)
-}
-
-func TestIngressBackendReconcilerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{
+	ing        = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
@@ -73,7 +58,22 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 			}},
 		},
 	}
+)
 
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
+}
+
+func TestIngressBackendReconcilerIntegration(t *testing.T) {
+	ing := ing.DeepCopy()
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -138,31 +138,7 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 }
 
 func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
-	ing := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ingress",
-			Namespace:   "test-ns",
-			Annotations: map[string]string{"kubernetes.azure.com/use-osm-mtls": "true"},
-		},
-		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("test-ingress-class"),
-			Rules: []netv1.IngressRule{{}, {
-				IngressRuleValue: netv1.IngressRuleValue{
-					HTTP: &netv1.HTTPIngressRuleValue{
-						Paths: []netv1.HTTPIngressPath{{}, {
-							Backend: netv1.IngressBackend{
-								Service: &netv1.IngressServiceBackend{
-									Name: "test-service",
-									Port: netv1.ServiceBackendPort{Number: 123},
-								},
-							},
-						}},
-					},
-				},
-			}},
-		},
-	}
-	
+	ing := ing.DeepCopy()
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -230,6 +206,7 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 }
 
 func TestNewIngressBackendReconciler(t *testing.T) {
+	ing := ing.DeepCopy()
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
