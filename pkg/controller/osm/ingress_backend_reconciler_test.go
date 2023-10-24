@@ -5,6 +5,7 @@ package osm
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"os"
 	"testing"
 
@@ -181,6 +182,10 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Get updated backend
+	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual)))
+	assert.Equal(t, len(manifests.GetTopLevelLabels()), len(actual.Labels))
 
 	// Remove the labels
 	actual.Labels = map[string]string{}
