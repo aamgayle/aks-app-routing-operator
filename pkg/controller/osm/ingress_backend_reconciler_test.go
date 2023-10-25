@@ -202,6 +202,7 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
 	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)))
 	assert.Equal(t, 0, len(backend.Labels))
 	_, err = e.Reconcile(ctx, req)
