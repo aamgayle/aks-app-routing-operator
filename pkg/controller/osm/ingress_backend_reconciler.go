@@ -128,11 +128,10 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
 
-	toCleanBackend := backend.DeepCopy()
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
 
-		//toCleanBackend := &policyv1alpha1.IngressBackend{}
+		toCleanBackend := backend.DeepCopy()
 
 		logger.Info("getting IngressBackend")
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
@@ -147,9 +146,9 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	i.buildBackend(toCleanBackend, ing, controllerName)
+	i.buildBackend(backend, ing, controllerName)
 	logger.Info("reconciling OSM ingress backend for ingress")
-	err = util.Upsert(ctx, i.client, toCleanBackend)
+	err = util.Upsert(ctx, i.client, backend)
 	return result, err
 }
 
