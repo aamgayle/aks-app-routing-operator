@@ -5,7 +5,6 @@ package osm
 
 import (
 	"context"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"os"
 	"testing"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 

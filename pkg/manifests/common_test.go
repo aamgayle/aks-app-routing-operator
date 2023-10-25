@@ -2,12 +2,12 @@ package manifests
 
 import (
 	"encoding/json"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/controller-runtime/pkg/client"

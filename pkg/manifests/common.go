@@ -1,11 +1,12 @@
 package manifests
 
 import (
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
 const operatorName = "aks-app-routing-operator"
@@ -16,13 +17,13 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 }
 
 // Checks the first set of labels has the labels of the other passed in sets
-func HasTopLevelLabels(spcLabels map[string]string) bool {
-	if len(spcLabels) == 0 {
+func HasTopLevelLabels(objLabels map[string]string) bool {
+	if len(objLabels) == 0 {
 		return false
 	}
 
 	for label, val := range GetTopLevelLabels() {
-		spcVal, ok := spcLabels[label]
+		spcVal, ok := objLabels[label]
 		if !ok {
 			return false
 		}

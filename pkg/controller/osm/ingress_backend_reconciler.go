@@ -5,8 +5,7 @@ package osm
 
 import (
 	"context"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,7 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
@@ -126,13 +127,12 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
-
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
 
-		logger.Info("getting IngressBackend")
 		toCleanBackend := &policyv1alpha1.IngressBackend{}
 
+		logger.Info("getting IngressBackend")
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
 		if err != nil {
 			return result, client.IgnoreNotFound(err)
@@ -145,13 +145,10 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	logger.Info("reconciling OSM ingress backend for ingress")
 	i.buildBackend(backend, ing, controllerName)
-	if err = util.Upsert(ctx, i.client, backend); err != nil {
-		return result, err
-	}
-
-	return result, nil
+	logger.Info("reconciling OSM ingress backend for ingress")
+	err = util.Upsert(ctx, i.client, backend)
+	return result, err
 }
 
 func (i *IngressBackendReconciler) buildBackend(backend *policyv1alpha1.IngressBackend, ing *netv1.Ingress, controllerName string) {
