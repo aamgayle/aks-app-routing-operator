@@ -145,9 +145,9 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	i.buildBackend(toCleanBackend, ing, controllerName)
+	i.buildBackend(backend, ing, controllerName)
 	logger.Info("reconciling OSM ingress backend for ingress")
-	err = util.Upsert(ctx, i.client, toCleanBackend)
+	err = util.Upsert(ctx, i.client, backend)
 	return result, err
 }
 
