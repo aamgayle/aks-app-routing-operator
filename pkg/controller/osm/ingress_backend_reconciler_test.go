@@ -223,3 +223,54 @@ func TestNewIngressBackendReconciler(t *testing.T) {
 	require.NoError(t, err, "should not error")
 
 }
+
+//
+//func TestIngressBackendReconcilerBuildBackend(t *testing.T) {
+//	cases := []struct {
+//		name, configCloud, spcCloud string
+//		expected                    bool
+//	}{
+//		{
+//			name:        "empty config cloud",
+//			configCloud: "",
+//			expected:    false,
+//		},
+//		{
+//			name:        "public cloud",
+//			configCloud: "AzurePublicCloud",
+//			spcCloud:    "AzurePublicCloud",
+//			expected:    true,
+//		},
+//		{
+//			name:        "sov cloud",
+//			configCloud: "AzureUSGovernmentCloud",
+//			spcCloud:    "AzureUSGovernmentCloud",
+//			expected:    true,
+//		},
+//	}
+//
+//	for _, c := range cases {
+//		t.Run(c.name, func(t *testing.T) {
+//			i := &IngressBackendReconciler{
+//				config: &config.Config{
+//					Cloud: c.configCloud,
+//				},
+//			}
+//
+//			ing := backendTestIng.DeepCopy()
+//			ing.Annotations = map[string]string{
+//				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
+//			}
+//
+//			controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
+//			backend := &policyv1alpha1.IngressBackend{}
+//			ok := i.buildBackend(backend, ing, controllerName)
+//			require.NoError(t, err, "building SPC should not error")
+//			require.True(t, ok, "SPC should be built")
+//
+//			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
+//			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
+//			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
+//		})
+//	}
+//}

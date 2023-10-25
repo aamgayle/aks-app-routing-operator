@@ -127,31 +127,59 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
-	ok = i.buildBackend(backend, ing, controllerName)
 
-	if ok {
-		logger.Info("reconciling OSM ingress backend for ingress")
-		err = util.Upsert(ctx, i.client, backend)
-		return result, err
+	backend.Spec = policyv1alpha1.IngressBackendSpec{
+		Backends: []policyv1alpha1.BackendSpec{},
+		Sources: []policyv1alpha1.IngressSourceSpec{
+			{
+				Kind:      "Service",
+				Name:      controllerName,
+				Namespace: i.config.NS,
+			},
+			{
+				Kind: "AuthenticatedPrincipal",
+				Name: osmNginxSAN,
+			},
+		},
+	}
+	for _, rule := range ing.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.Service == nil || path.Backend.Service.Port.Number == 0 {
+				continue
+			}
+			backend.Spec.Backends = append(backend.Spec.Backends, policyv1alpha1.BackendSpec{
+				Name: path.Backend.Service.Name,
+				TLS:  policyv1alpha1.TLSSpec{SkipClientCertValidation: false},
+				Port: policyv1alpha1.PortSpec{
+					Number:   int(path.Backend.Service.Port.Number),
+					Protocol: "https",
+				},
+			})
+		}
 	}
 
-	logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
-	logger.Info("getting IngressBackend")
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
+		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+		logger.Info("getting IngressBackend")
 
-	toCleanBackend := &policyv1alpha1.IngressBackend{}
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
-	if err != nil {
-		return result, client.IgnoreNotFound(err)
-	}
+		toCleanBackend := &policyv1alpha1.IngressBackend{}
+		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
+		if err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
 
-	if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
-		logger.Info("deleting IngressBackend")
-		err = i.client.Delete(ctx, toCleanBackend)
-		return result, client.IgnoreNotFound(err)
+		if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
+			logger.Info("deleting IngressBackend")
+			err = i.client.Delete(ctx, toCleanBackend)
+			return result, client.IgnoreNotFound(err)
+		}
 	}
 
 	logger.Info("reconciling OSM ingress backend for ingress")
-	err = util.Upsert(ctx, i.client, toCleanBackend)
+	err = util.Upsert(ctx, i.client, backend)
 	return result, err
 }
 
