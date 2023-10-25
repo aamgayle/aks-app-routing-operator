@@ -176,6 +176,10 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			err = i.client.Delete(ctx, toCleanBackend)
 			return result, client.IgnoreNotFound(err)
 		}
+
+		logger.Info("reconciling OSM ingress backend for ingress")
+		err = util.Upsert(ctx, i.client, toCleanBackend)
+		return result, err
 	}
 
 	logger.Info("reconciling OSM ingress backend for ingress")
