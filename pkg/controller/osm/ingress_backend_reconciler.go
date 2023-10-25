@@ -130,17 +130,17 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
 
-		toCleanBackend := &policyv1alpha1.IngressBackend{}
+		//toCleanBackend := &policyv1alpha1.IngressBackend{}
 
 		logger.Info("getting IngressBackend")
-		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
+		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 		if err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
 
-		if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
+		if manifests.HasTopLevelLabels(backend.Labels) {
 			logger.Info("deleting IngressBackend")
-			err = i.client.Delete(ctx, toCleanBackend)
+			err = i.client.Delete(ctx, backend)
 			return result, client.IgnoreNotFound(err)
 		}
 	}
