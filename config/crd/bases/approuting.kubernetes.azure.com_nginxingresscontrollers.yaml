@@ -62,6 +62,10 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               defaultSSLCertificate:
+                description: DefaultSSLCertificate is a struct with a secret with
+                  the fields namespace and name which is used to configure the NginxIngressController
+                  being managed via this CRD. If the field is not defined, no DefaultSSLCertificate
+                  will be used
                 properties:
                   keyVaultURI:
                     description: Secret in the form of a Key Vault URI
@@ -85,6 +89,9 @@ spec:
                     - name
                     - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: If Secret is used both fields need to have values
+                      rule: has(self.name) && has(self.namespace)
                 type: object
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
