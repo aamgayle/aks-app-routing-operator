@@ -93,6 +93,11 @@ spec:
                     - message: If Secret is used both fields need to have values
                       rule: has(self.name) && has(self.namespace)
                 type: object
+                x-kubernetes-validations:
+                - message: 'DefaultSSLCertificate should hold only one of the following:
+                    a Secret with all fields or a key vault URI'
+                  rule: (has(self.Secret) && !has(self.KeyVaultURI)) || (!has(self.Secret)
+                    && has(self.KeyVaultURI))
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that
