@@ -53,7 +53,6 @@ type NginxIngressControllerSpec struct {
 
 	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
 	// +optional
-	// +kubebuilder:validation:XValidation:rule=defaultSSLCertificate.exists_one(x, ((self.properties.secret.properties.name=="" && self.properties.secret.properties.namespace=="" && self.properties.keyVaultURI!="") || (self.properties.secret.properties.name!="" && self.properties.secret.properties.namespace!="" && self.properties.keyVaultURI=="")))
 	// The only valid use of DefaultSSLCertificate is either a Secret with both fields not nil or a properly formatted Key Vault URI
 
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
@@ -67,7 +66,6 @@ type DefaultSSLCertificate struct {
 
 	// Secret in the form of a Key Vault URI
 	// +optional
-	// +kubebuilder:default:=""
 	KeyVaultURISecret string `json:"keyVaultURI"`
 }
 
@@ -75,13 +73,11 @@ type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +kubebuilder:default:=""
 	Name string `json:"name"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +kubebuilder:default:=""
 	Namespace string `json:"namespace"`
 }
 

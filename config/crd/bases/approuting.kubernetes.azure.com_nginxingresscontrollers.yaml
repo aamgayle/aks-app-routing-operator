@@ -62,16 +62,14 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               defaultSSLCertificate:
-                description: DefaultSSLCertificate is a struct with a secret with
-                  the fields namespace and name which is used to create the ssl certificate
-                  used by the default HTTPS server
                 properties:
-                  keyVaultURISecret:
+                  keyVaultURI:
                     description: Secret in the form of a Key Vault URI
                     type: string
                   secret:
                     description: Secret is a struct that holds the name and namespace
-                      fields used for the default ssl secret
+                      fields used for the default ssl secret. Defaults to this option
+                      if both a secret and key vault URI are provided
                     properties:
                       name:
                         maxLength: 253
