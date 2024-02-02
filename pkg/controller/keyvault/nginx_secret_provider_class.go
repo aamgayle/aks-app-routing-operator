@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -28,29 +27,29 @@ import (
 )
 
 var (
-	crdSecretProviderControllerName = controllername.New("keyvault", "crd", "secret", "provider")
+	nginxSecretProviderControllerName = controllername.New("keyvault", "nginx", "secret", "provider")
 )
 
-// CrdSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
+// NginxSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the CRD controller.
-type CrdSecretProviderClassReconciler struct {
+type NginxSecretProviderClassReconciler struct {
 	client         client.Client
 	events         record.EventRecorder
 	config         *config.Config
 	ingressManager IngressManager
 }
 
-func NewCrdSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager, keyvaulturi string) error {
-	metrics.InitControllerMetrics(crdSecretProviderControllerName)
+func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+	metrics.InitControllerMetrics(nginxSecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil
 	}
-	return crdSecretProviderControllerName.AddToController(
+	return nginxSecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
 			For(&approutingv1alpha1.NginxIngressController{}), manager.GetLogger(),
-	).Complete(&CrdSecretProviderClassReconciler{
+	).Complete(&NginxSecretProviderClassReconciler{
 		client:         manager.GetClient(),
 		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
 		config:         conf,
@@ -58,7 +57,7 @@ func NewCrdSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Conf
 	})
 }
 
-func (i *CrdSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var err error
 	result := ctrl.Result{}
 
@@ -68,22 +67,22 @@ func (i *CrdSecretProviderClassReconciler) Reconcile(ctx context.Context, req ct
 		//this makes sure they have the proper value
 		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
 		//the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(crdSecretProviderControllerName, result, err)
+		metrics.HandleControllerReconcileMetrics(nginxSecretProviderControllerName, result, err)
 	}()
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return result, err
 	}
-	logger = crdSecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
+	logger = nginxSecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
 	logger.Info("getting Ingress")
-	ing := &netv1.Ingress{}
-	err = i.client.Get(ctx, req.NamespacedName, ing)
+	nic := &approutingv1alpha1.NginxIngressController{}
+	err = i.client.Get(ctx, req.NamespacedName, nic)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
+	logger = logger.WithValues("name", nic.Name, "namespace", nic.Namespace, "generation", nic.Generation)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -91,30 +90,31 @@ func (i *CrdSecretProviderClassReconciler) Reconcile(ctx context.Context, req ct
 			Kind:       "SecretProviderClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
-			Namespace: ing.Namespace,
+			//keyvault-nginx-{crdName}
+			Name:      DefaultNginxCertName(nic),
+			Namespace: "approutingsystem",
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: ing.APIVersion,
+				APIVersion: nic.APIVersion,
 				Controller: util.BoolPtr(true),
-				Kind:       ing.Kind,
-				Name:       ing.Name,
-				UID:        ing.UID,
+				Kind:       nic.Kind,
+				Name:       nic.Name,
+				UID:        nic.UID,
 			}},
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
-	ok, err := i.buildSPC(ing, spc)
+	ok, err := i.buildSPC(nic, spc)
 	if err != nil {
 		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
+		i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
 		return result, nil
 	}
 	if ok {
 		logger.Info("reconciling secret provider class for ingress")
 		err = util.Upsert(ctx, i.client, spc)
 		if err != nil {
-			i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+			i.events.Eventf(nic, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
 		}
 		return result, err
 	}
@@ -138,20 +138,12 @@ func (i *CrdSecretProviderClassReconciler) Reconcile(ctx context.Context, req ct
 	return result, nil
 }
 
-func (i *CrdSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
-	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
+func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.NginxIngressController, spc *secv1.SecretProviderClass) (bool, error) {
+	if nic.Spec.IngressClassName == "" {
 		return false, nil
 	}
 
-	managed, err := i.ingressManager.IsManaging(ing)
-	if err != nil {
-		return false, fmt.Errorf("determining if ingress is managed: %w", err)
-	}
-	if !managed {
-		return false, nil
-	}
-
-	certURI := ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
+	certURI := nic.Spec.DefaultSSLCertificate.KeyVaultURI
 	if certURI == "" {
 		return false, nil
 	}
@@ -186,7 +178,7 @@ func (i *CrdSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *sec
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
-			SecretName: fmt.Sprintf("keyvault-%s", ing.Name),
+			SecretName: fmt.Sprintf("keyvault-%s", nic.Name),
 			Type:       "kubernetes.io/tls",
 			Data: []*secv1.SecretObjectData{
 				{
@@ -214,4 +206,13 @@ func (i *CrdSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *sec
 	}
 
 	return true, nil
+}
+
+// DefaultNginxCertName returns a default name for the nginx certificate name using the IngressClassName from the spec.
+// Truncates characters in the IngressClassName passed the max secret length (255) if the IngressClassName and the default namespace are over the limit
+func DefaultNginxCertName(nic *approutingv1alpha1.NginxIngressController) string {
+	secretMaxSize := 255
+	certName := "approutingsystem/" + nic.Spec.IngressClassName
+
+	return certName[0:secretMaxSize]
 }
