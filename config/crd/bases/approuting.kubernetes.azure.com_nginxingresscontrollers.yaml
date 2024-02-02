@@ -71,8 +71,7 @@ spec:
                     type: string
                   secret:
                     description: Secret is a struct that holds the name and namespace
-                      fields used for the default ssl secret. Defaults to this option
-                      if both a secret and key vault URI are provided
+                      fields used for the default ssl secret
                     properties:
                       name:
                         maxLength: 253
@@ -89,11 +88,6 @@ spec:
                     - namespace
                     type: object
                 type: object
-                x-kubernetes-validations:
-                - message: 'DefaultSSLCertificate should hold only one of the following:
-                    a Secret with all fields or a key vault URI'
-                  rule: (has(self.Secret) && !has(self.KeyVaultURI)) || (!has(self.Secret)
-                    && has(self.KeyVaultURI))
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that

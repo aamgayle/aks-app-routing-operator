@@ -57,10 +57,8 @@ type NginxIngressControllerSpec struct {
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="(has(self.Secret) && !has(self.KeyVaultURI)) || (!has(self.Secret) && has(self.KeyVaultURI))", message="DefaultSSLCertificate should hold only one of the following: a Secret with all fields or a key vault URI"
 type DefaultSSLCertificate struct {
-	// Secret is a struct that holds the name and namespace fields used for the default ssl secret. Defaults to this
-	// option if both a secret and key vault URI are provided
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
 	Secret *Secret `json:"secret,omitempty"`
 
