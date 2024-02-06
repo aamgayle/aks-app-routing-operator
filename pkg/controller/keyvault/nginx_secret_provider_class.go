@@ -34,10 +34,9 @@ var (
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the CRD controller.
 type NginxSecretProviderClassReconciler struct {
-	client         client.Client
-	events         record.EventRecorder
-	config         *config.Config
-	ingressManager IngressManager
+	client client.Client
+	events record.EventRecorder
+	config *config.Config
 }
 
 func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
@@ -50,10 +49,9 @@ func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Co
 			NewControllerManagedBy(manager).
 			For(&approutingv1alpha1.NginxIngressController{}), manager.GetLogger(),
 	).Complete(&NginxSecretProviderClassReconciler{
-		client:         manager.GetClient(),
-		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
-		config:         conf,
-		ingressManager: ingressManager,
+		client: manager.GetClient(),
+		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
+		config: conf,
 	})
 }
 

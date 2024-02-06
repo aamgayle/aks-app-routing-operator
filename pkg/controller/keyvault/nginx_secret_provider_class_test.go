@@ -13,7 +13,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,37 +34,30 @@ var (
 	spcTestNginxIngressClassName = "webapprouting.kubernetes.azure.com"
 	spcTestNginxIngress          = &v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
+			Name:      "test-nic",
 			Namespace: "default",
-			Annotations: map[string]string{
-				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-			},
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName: spcTestNginxIngressClassName,
+			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
+				Secret:      nil,
+				KeyVaultURI: "test.keyvault.azure.com"},
 		},
 	}
 )
 
 func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
-	// Create the ingress
+	// Create the nic
 	nic := spcTestNginxIngress.DeepCopy()
 
 	c := fake.NewClientBuilder().WithObjects(nic).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
-	i := &IngressSecretProviderClassReconciler{
+	n := &NginxSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestNginxIngressClassName {
-				return true, nil
-			}
-
-			return false, nil
-		}),
 	}
 
 	ctx := context.Background()
@@ -73,13 +65,13 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
-	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err := i.Reconcile(ctx, req)
+	beforeErrCount := testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err := n.Reconcile(ctx, req)
 	require.NoError(t, err)
 
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove it exists
 	spc := &secv1.SecretProviderClass{}
@@ -94,9 +86,9 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 			Parameters: map[string]string{
 				"keyvaultName":           "testvault",
 				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-				"tenantId":               i.config.TenantID,
+				"tenantId":               n.config.TenantID,
 				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": i.config.MSIClientID,
+				"userAssignedIdentityID": n.config.MSIClientID,
 			},
 			SecretObjects: []*secv1.SecretObject{{
 				SecretName: spc.Name,
@@ -111,85 +103,76 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Remove the cert's version from the ingress
-	nic.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
-	}
-	require.NoError(t, i.client.Update(ctx, nic))
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	// Remove the cert's version from the nic
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = "https://testvault.vault.azure.net/certificates/testcert"
+	require.NoError(t, n.client.Update(ctx, nic))
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove the objectVersion property was removed
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 	expected.Spec.Parameters["objects"] = "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\"}\"]}"
 	assert.Equal(t, expected.Spec, spc.Spec)
 
-	// Remove the cert annotation from the ingress
-	nic.Annotations = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, nic))
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	// Remove the cert annotation from the nic
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = ""
+	require.NoError(t, n.client.Update(ctx, nic))
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove secret class was removed
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 
 	// Check for idempotence
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 }
 
 func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testing.T) {
-	// Create the ingress
-	ing := spcTestNginxIngress.DeepCopy()
+	// Create the nic
+	nic := spcTestNginxIngress.DeepCopy()
 
-	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	c := fake.NewClientBuilder().WithObjects(nic).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
-	i := &IngressSecretProviderClassReconciler{
+	n := &NginxSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestNginxIngressClassName {
-				return true, nil
-			}
-
-			return false, nil
-		}),
 	}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
 	// Create the secret provider class
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
-	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err := i.Reconcile(ctx, req)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err := n.Reconcile(ctx, req)
 	require.NoError(t, err)
 
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -197,15 +180,15 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 			Kind:       "SecretProviderClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
-			Namespace: ing.Namespace,
+			Name:      fmt.Sprintf("keyvault-%s", nic.Name),
+			Namespace: nic.Namespace,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: ing.APIVersion,
+				APIVersion: nic.APIVersion,
 				Controller: util.BoolPtr(true),
-				Kind:       ing.Kind,
-				Name:       ing.Name,
-				UID:        ing.UID,
+				Kind:       nic.Kind,
+				Name:       nic.Name,
+				UID:        nic.UID,
 			}},
 		},
 	}
@@ -216,20 +199,20 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 
 	// Remove the labels
 	spc.Labels = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, spc))
+	require.NoError(t, n.client.Update(ctx, spc))
 	assert.Equal(t, 0, len(spc.Labels))
 
-	// Remove the cert annotation from the ingress
-	ing.Annotations = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, ing))
+	// Remove the cert annotation from the nic
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = ""
+	require.NoError(t, n.client.Update(ctx, nic))
 
 	// Reconcile both changes
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove secret class was not removed
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
@@ -243,9 +226,9 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 			Parameters: map[string]string{
 				"keyvaultName":           "testvault",
 				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-				"tenantId":               i.config.TenantID,
+				"tenantId":               n.config.TenantID,
 				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": i.config.MSIClientID,
+				"userAssignedIdentityID": n.config.MSIClientID,
 			},
 			SecretObjects: []*secv1.SecretObject{{
 				SecretName: spc.Name,
@@ -260,133 +243,107 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
+	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = n.Reconcile(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+	require.Equal(t, testutils.GetErrMetricCount(t, nginxSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 }
 
 func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
-	// Create the ingress
-	ing := spcTestNginxIngress.DeepCopy()
-	ing.Annotations = map[string]string{
-		"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
-	}
+	// Create the nic
+	nic := spcTestNginxIngress.DeepCopy()
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = "inv@lid URL"
 
-	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	c := fake.NewClientBuilder().WithObjects(nic).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	recorder := record.NewFakeRecorder(10)
-	i := &IngressSecretProviderClassReconciler{
+	n := &NginxSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
 		events: recorder,
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestNginxIngressClassName {
-				return true, nil
-			}
-
-			return false, nil
-		}),
 	}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
-	metrics.InitControllerMetrics(ingressSecretProviderControllerName)
+	metrics.InitControllerMetrics(nginxSecretProviderControllerName)
 
 	// get the before value of the error metrics
-	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
+	beforeErrCount := testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelError)
 
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
-	_, err := i.Reconcile(ctx, req)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
+	_, err := n.Reconcile(ctx, req)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Warning InvalidInput error while processing Keyvault reference: invalid secret uri: inv@lid URL", <-recorder.Events)
 	//even though no error was returned, we should expect the error count to be incremented
-	afterErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	afterRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
+	afterErrCount := testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
+	afterRequestCount := testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelError)
 
 	assert.Greater(t, afterErrCount, beforeErrCount)
 	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
 func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestNginxIngressClassName {
-				return true, nil
-			}
+	n := &NginxSecretProviderClassReconciler{}
 
-			return false, nil
-		}),
-	}
-
-	invalidURLIng := &netv1.Ingress{
-		Spec: netv1.IngressSpec{
-			IngressClassName: &spcTestNginxIngressClassName,
+	invalidURLIng := &v1alpha1.NginxIngressController{
+		Spec: v1alpha1.NginxIngressControllerSpec{
+			IngressClassName:      spcTestNginxIngressClassName,
+			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{KeyVaultURI: ""},
 		},
 	}
 
-	t.Run("missing ingress class", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Spec.IngressClassName = nil
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
+	t.Run("missing nic class name", func(t *testing.T) {
+		nic := invalidURLIng.DeepCopy()
+		nic.Spec.IngressClassName = ""
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
-	t.Run("incorrect ingress class", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
+	t.Run("incorrect nic class name", func(t *testing.T) {
+		nic := invalidURLIng.DeepCopy()
 		incorrect := "some-other-ingress-class"
-		ing.Spec.IngressClassName = &incorrect
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
+		nic.Spec.IngressClassName = incorrect
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = "inv@lid URL"
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
-	t.Run("nil annotations", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
+	t.Run("empty key vault uri", func(t *testing.T) {
+		nic := invalidURLIng.DeepCopy()
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("empty url", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": ""}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
 	t.Run("url with control character", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
+		nic := invalidURLIng.DeepCopy()
 		cc := string([]byte{0x7f})
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": cc}
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = cc
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
 		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
 		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
 	})
 
 	t.Run("url with one path segment", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "http://test.com/foo"}
+		nic := invalidURLIng.DeepCopy()
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = "http://test.com/foo"
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
 		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
 	})
@@ -418,26 +375,17 @@ func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			i := &NginxSecretProviderClassReconciler{
+			n := &NginxSecretProviderClassReconciler{
 				config: &config.Config{
 					Cloud: c.configCloud,
 				},
-				ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-					if *ing.Spec.IngressClassName == spcTestNginxIngressClassName {
-						return true, nil
-					}
-
-					return false, nil
-				}),
 			}
 
-			ing := spcTestNginxIngress.DeepCopy()
-			ing.Annotations = map[string]string{
-				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
-			}
+			nic := spcTestNginxIngress.DeepCopy()
+			nic.Spec.DefaultSSLCertificate.KeyVaultURI = "https://test.vault.azure.net/secrets/test-secret"
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := i.buildSPC(ing, spc)
+			ok, err := n.buildSPC(nic, spc)
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 
@@ -446,28 +394,4 @@ func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
 	}
-}
-
-func TestNginxSecretProviderClassReconcilerBuildSPCFailedIsManaging(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			return false, fmt.Errorf("failed to get ingress")
-		}),
-	}
-
-	ing := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ingress",
-			Annotations: map[string]string{},
-		},
-		Spec: netv1.IngressSpec{
-			IngressClassName: &spcTestNginxIngressClassName,
-		},
-	}
-	spc := &secv1.SecretProviderClass{}
-
-	ok, err := i.buildSPC(ing, spc)
-	require.False(t, ok)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "determining if ingress is managed")
 }
