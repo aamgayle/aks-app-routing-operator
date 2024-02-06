@@ -72,7 +72,7 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 
 	// Create the secret provider class
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
 	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err := i.Reconcile(ctx, req)
@@ -83,8 +83,8 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	// Prove it exists
 	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + ing.Name
-	spc.Namespace = ing.Namespace
+	spc.Name = "keyvault-" + nic.Name
+	spc.Namespace = nic.Namespace
 	spc.Labels = manifests.GetTopLevelLabels()
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
@@ -119,10 +119,10 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Remove the cert's version from the ingress
-	ing.Annotations = map[string]string{
+	nic.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
 	}
-	require.NoError(t, i.client.Update(ctx, ing))
+	require.NoError(t, i.client.Update(ctx, nic))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -136,8 +136,8 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Remove the cert annotation from the ingress
-	ing.Annotations = map[string]string{}
-	require.NoError(t, i.client.Update(ctx, ing))
+	nic.Annotations = map[string]string{}
+	require.NoError(t, i.client.Update(ctx, nic))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -418,7 +418,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			i := &IngressSecretProviderClassReconciler{
+			i := &NginxSecretProviderClassReconciler{
 				config: &config.Config{
 					Cloud: c.configCloud,
 				},
