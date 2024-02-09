@@ -28,11 +28,12 @@ import (
 
 var (
 	nginxSecretProviderControllerName = controllername.New("keyvault", "nginx", "secret", "provider")
+	NginxNamePrefix                   = "keyvault-nginx-"
 )
 
-// NginxSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
-// references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
-// so that it can be used by the CRD controller.
+// NginxSecretProviderClassReconciler manages a SecretProviderClass for each nginx ingress controller that
+// has a Keyvault URI in its DefaultSSLCertificate field. The SPC is used to mirror the Keyvault values into
+// a k8s secret so that it can be used by the CRD controller.
 type NginxSecretProviderClassReconciler struct {
 	client client.Client
 	events record.EventRecorder
@@ -74,13 +75,13 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	}
 	logger = nginxSecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
-	logger.Info("getting Ingress")
+	logger.Info("getting Nginx Ingress")
 	nic := &approutingv1alpha1.NginxIngressController{}
 	err = i.client.Get(ctx, req.NamespacedName, nic)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("name", nic.Name, "namespace", nic.Namespace, "generation", nic.Generation)
+	logger = logger.WithValues("name", nic.Name, "namespace", "approutingsystem", "generation", nic.Generation)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -88,7 +89,6 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 			Kind:       "SecretProviderClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			//keyvault-nginx-{crdName}
 			Name:      DefaultNginxCertName(nic),
 			Namespace: "approutingsystem",
 			Labels:    manifests.GetTopLevelLabels(),
@@ -176,7 +176,7 @@ func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.Ng
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
-			SecretName: fmt.Sprintf("keyvault-%s", nic.Name),
+			SecretName: DefaultNginxCertName(nic),
 			Type:       "kubernetes.io/tls",
 			Data: []*secv1.SecretObjectData{
 				{
@@ -210,7 +210,11 @@ func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.Ng
 // Truncates characters in the IngressClassName passed the max secret length (255) if the IngressClassName and the default namespace are over the limit
 func DefaultNginxCertName(nic *approutingv1alpha1.NginxIngressController) string {
 	secretMaxSize := 255
-	certName := "approutingsystem/" + nic.Spec.IngressClassName
+	certName := NginxNamePrefix + nic.Name
 
-	return certName[0:secretMaxSize]
+	if len(certName) > secretMaxSize {
+		return certName[0:secretMaxSize]
+	}
+
+	return certName
 }

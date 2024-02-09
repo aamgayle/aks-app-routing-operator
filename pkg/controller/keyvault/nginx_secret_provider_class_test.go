@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"net/url"
 	"testing"
 
@@ -35,33 +36,38 @@ var (
 	spcTestNginxIngress          = &v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-nic",
-			Namespace: "default",
+			Namespace: "test-namespace",
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName: spcTestNginxIngressClassName,
 			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
 				Secret:      nil,
-				KeyVaultURI: "test.keyvault.azure.com"},
+				KeyVaultURI: "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"},
 		},
 	}
 )
 
 func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	// Create the nic
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
 	nic := spcTestNginxIngress.DeepCopy()
 
-	c := fake.NewClientBuilder().WithObjects(nic).Build()
-	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nic).Build()
+
+	recorder := record.NewFakeRecorder(10)
 	n := &NginxSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
+		events: recorder,
 	}
-
-	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logr.Discard())
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
@@ -75,9 +81,8 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	// Prove it exists
 	spc := &secv1.SecretProviderClass{}
-	spc.Name = "keyvault-" + nic.Name
-	spc.Namespace = nic.Namespace
-	spc.Labels = manifests.GetTopLevelLabels()
+	spc.Name = DefaultNginxCertName(nic)
+	spc.Namespace = "approutingsystem"
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	expected := &secv1.SecretProviderClass{
@@ -149,20 +154,25 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testing.T) {
 	// Create the nic
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
 	nic := spcTestNginxIngress.DeepCopy()
 
-	c := fake.NewClientBuilder().WithObjects(nic).Build()
-	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nic).Build()
+
+	recorder := record.NewFakeRecorder(10)
 	n := &NginxSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
+		events: recorder,
 	}
-
-	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logr.Discard())
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nic.Namespace, Name: nic.Name}}
@@ -180,8 +190,8 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 			Kind:       "SecretProviderClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("keyvault-%s", nic.Name),
-			Namespace: nic.Namespace,
+			Name:      DefaultNginxCertName(nic),
+			Namespace: "approutingsystem",
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
@@ -252,12 +262,16 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 }
 
 func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
 	// Create the nic
 	nic := spcTestNginxIngress.DeepCopy()
 	nic.Spec.DefaultSSLCertificate.KeyVaultURI = "inv@lid URL"
 
-	c := fake.NewClientBuilder().WithObjects(nic).Build()
-	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nic).Build()
 	recorder := record.NewFakeRecorder(10)
 	n := &NginxSecretProviderClassReconciler{
 		client: c,
@@ -267,9 +281,6 @@ func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 		},
 		events: recorder,
 	}
-
-	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logr.Discard())
 
 	metrics.InitControllerMetrics(nginxSecretProviderControllerName)
 
@@ -303,17 +314,6 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	t.Run("missing nic class name", func(t *testing.T) {
 		nic := invalidURLIng.DeepCopy()
 		nic.Spec.IngressClassName = ""
-
-		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("incorrect nic class name", func(t *testing.T) {
-		nic := invalidURLIng.DeepCopy()
-		incorrect := "some-other-ingress-class"
-		nic.Spec.IngressClassName = incorrect
-		nic.Spec.DefaultSSLCertificate.KeyVaultURI = "inv@lid URL"
 
 		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
