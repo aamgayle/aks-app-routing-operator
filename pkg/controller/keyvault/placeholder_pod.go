@@ -112,14 +112,29 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if strings.HasPrefix(spc.Name, NginxNamePrefix) {
 		nic := &v1alpha1.NginxIngressController{}
-		nic.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingressß")
-		nic.Namespace = req.Namespace
+		nic.Name = util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController")
+
 		if nic.Name != "" {
 			logger.Info("getting owner nginx ingress controller")
 			if err = p.client.Get(ctx, client.ObjectKeyFromObject(nic), nic); err != nil {
 				return result, client.IgnoreNotFound(err)
 			}
 		}
+
+		if nic.Name == "" || nic.Spec.IngressClassName == "" || nic.Spec.DefaultSSLCertificate.KeyVaultURI == "" {
+			logger.Info("cleaning unused placeholder pod deployment")
+			logger.Info("getting placeholder deployment")
+			toCleanDeployment := &appsv1.Deployment{}
+			if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
+				return result, client.IgnoreNotFound(err)
+			}
+			if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
+				logger.Info("deleting placeholder deployment")
+				err = p.client.Delete(ctx, toCleanDeployment)
+				return result, client.IgnoreNotFound(err)
+			}
+		}
+
 		// Manage a deployment resource
 		logger.Info("reconciling placeholder deployment for secret provider class")
 		if err = p.buildDeployment(ctx, dep, spc, nic.Name); err != nil {
@@ -134,6 +149,9 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, err
 		}
 	} else {
+		if p.ingressManager == nil {
+			return result, fmt.Errorf("checking if ingressManager was not nil on non-nginx ingress: %w", err)
+		}
 		ing := &netv1.Ingress{}
 		ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
 		ing.Namespace = req.Namespace
