@@ -3,6 +3,7 @@ package keyvault
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"net/url"
 	"strings"
 
@@ -43,12 +44,12 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return false, buildSPCUserError(err)
+		return false, userErrorBuildSPC(err)
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 	if len(chunks) < 3 {
-		return false, buildSPCUserError(fmt.Errorf("invalid secret uri: %s", certURI))
+		return false, common.NewUserErrorInvalidSecretUri(certURI)
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -114,8 +115,8 @@ func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 	return certName
 }
 
-type buildSPCUserError interface {
-	error
+func userErrorBuildSPC() error {
+	return common.UserErrorBuildSPC{}
 }
 
 func certSecretName(ingressName string) string {
