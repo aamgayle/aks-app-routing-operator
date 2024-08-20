@@ -2,6 +2,7 @@ package manifests
 
 import (
 	_ "embed"
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -29,6 +30,13 @@ type ClientServerResources struct {
 	AddedObjects []client.Object
 }
 
+type MainDeployments struct {
+	Client  *appsv1.Deployment
+	Server  *appsv1.Deployment
+	Ingress *netv1.Ingress
+	Service *corev1.Service
+}
+
 func (t ClientServerResources) Objects() []client.Object {
 	ret := []client.Object{
 		t.Client,
@@ -48,6 +56,25 @@ func (t ClientServerResources) Objects() []client.Object {
 
 func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+
+	objs := ClientAndServerObjs(namespace, name, nameserver, keyvaultURI, host, tlsHost)
+	retReources := ClientServerResources{
+		Client:  objs.Client,
+		Server:  objs.Server,
+		Ingress: objs.Ingress,
+		Service: objs.Service,
+	}
+
+	if tlsHost == "" {
+		objs.Ingress.Spec.Rules[0].Host = ""
+		objs.Ingress.Spec.TLS = nil
+		delete(objs.Ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
+	}
+
+	return retReources
+}
+
+func ClientAndServerObjs(namespace, name, nameserver, keyvaultURI, host, tlsHost string) MainDeployments {
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
@@ -149,16 +176,84 @@ func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost str
 		},
 	}
 
-	if tlsHost == "" {
-		ingress.Spec.Rules[0].Host = ""
-		ingress.Spec.TLS = nil
-		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
-	}
-
-	return ClientServerResources{
+	return MainDeployments{
 		Client:  clientDeployment,
 		Server:  serverDeployment,
-		Service: service,
 		Ingress: ingress,
+		Service: service,
+	}
+}
+
+//func DefaultBackendClientAndServerObjs() MainDeployments {
+//	return MainDeployments{
+//		Client:  {},
+//		Server:  {},
+//		Ingress: {},
+//		Service: {},
+//	}
+//}
+
+type TestValues struct {
+	TestTypePrefix        string
+	ClientContents        string
+	ClientEnvironmentVars []corev1.EnvVar
+	ServerContents        string
+	ServicePort           int
+	IngressPaths          []netv1.HTTPIngressPath
+}
+
+func ClientAndServerTestValues(nic v1alpha1.NginxIngressController) TestValues {
+	testVals := TestValues{
+		TestTypePrefix:        "",
+		ClientContents:        "",
+		ClientEnvironmentVars: []corev1.EnvVar{},
+		ServerContents:        "",
+		ServicePort:           8080,
+		IngressPaths:          []netv1.HTTPIngressPath{},
+	}
+
+	// Client
+	if nic.Spec.DefaultBackendService != nil {
+		if nic.Spec.CustomHTTPErrors != nil {
+			testVals.ClientContents = ceClientContents
+			testVals.ClientEnvironmentVars = CustomErrorsEnv
+		} else {
+			testVals.ClientContents = dbClientContents
+
+		}
+	}
+	// Ingress
+	if nic.Spec.CustomHTTPErrors != nil {
+		testVals.IngressPaths = append(
+			testVals.IngressPaths,
+			[]netv1.HTTPIngressPath{
+				getIngressPath(liveServicePath, "live-service", 5678),
+				getIngressPath(deadServicePath, "dead-service", 8080)}...)
+	} else {
+		testVals.IngressPaths = append(
+			testVals.IngressPaths, getIngressPath(liveServicePath, "live-service", 8080))
+	}
+
+	return testVals
+}
+
+func getIngressPath(path, serviceName string, servicePort int32) netv1.HTTPIngressPath {
+	return netv1.HTTPIngressPath{
+		Path:     path,
+		PathType: to.Ptr(netv1.PathTypePrefix),
+		Backend: netv1.IngressBackend{
+			Service: &netv1.IngressServiceBackend{
+				Name: serviceName,
+				Port: netv1.ServiceBackendPort{
+					Number: servicePort,
+				},
+			},
+		},
+	}
+}
+func getEnvVar(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  name,
+		Value: value,
 	}
 }

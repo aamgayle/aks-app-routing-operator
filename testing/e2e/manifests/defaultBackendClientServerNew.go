@@ -10,21 +10,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-////go:embed embedded/defaultBackendClient.go
-//var dbClientContents string
-//
-////go:embed embedded/defaultBackendServer.go
-//var dbServerContents string
-//
-//var (
-//	validUrlPath    = "/test"
-//	invalidUrlPath  = "/fakehost"
-//	liveServicePath = "/live"
-//	deadServicePath = "/dead"
-//	notFoundPath    = "/notfound"
-//)
+//go:embed embedded/defaultBackendClient.go
+var dbClientContents string
 
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
+//go:embed embedded/defaultBackendServer.go
+var dbServerContents string
+
+var (
+	validUrlPath    = "/test"
+	invalidUrlPath  = "/fakehost"
+	liveServicePath = "/live"
+	deadServicePath = "/dead"
+	notFoundPath    = "/notfound"
+)
+
+func DefaultBackendClientAndServerNew(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
 	// Client deployment
 	clientDeployment := newGoDeployment(dbClientContents, namespace, name+"-db-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
@@ -63,9 +63,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 
 	// Main server deployment
 	serverName := name + "dbtest-server"
-	serviceName := name + "dbtest-service"
-
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
+	serviceName := name + "dbtest-service"
 	ingressName := name + "-ingress"
 
 	service :=
